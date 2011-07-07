@@ -1,6 +1,6 @@
 #include "key.h"
 
-int main(int argc, char **argv[]){
+int main(int argc, char *argv[]){
 	char *ck;	// Key buffer (stores generated key)
 	char *text;	// The text to cipher
 	char *ebuff;	// Encryption buffer
@@ -27,7 +27,7 @@ int main(int argc, char **argv[]){
 	encrypt(text, ck, ebuff);
 	decrypt(ebuff, ck, dbuff);
 
-D(("Performed Vignere Cipher:\nP = %s\nK = %s\nC = %s\nD = %s\n", text, ck, ebuff, dbuff));
+//D(("Performed Vignere Cipher:\nP = %s\nK = %s\nC = %s\nD = %s\n", text, ck, ebuff, dbuff));
 	// Since we are decrypting, dbuff will be the same as text if successful
 	if(!strcmp(text, dbuff))
 		printf("Encrypting and decrypting work.\n");

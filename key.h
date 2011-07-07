@@ -246,12 +246,15 @@ static int key(int bytes_read, char *key_out){
 		return 0;
 	}
 
-	buffer = (char*)malloc(sizeof(char)*bytes_read);
+	len = (sizeof(char) * bytes_read);
+
+	buffer = (char*)malloc(len);
 
 	if(!buffer){
 		printf("Unable to allocate enough memory!\n");
 		return 0;
-	}
+	} else
+		D(("Allocated %d bytes to buffer.", len));
 
 	if(MODULO == 26){
 		min = 65;
@@ -272,8 +275,9 @@ static int key(int bytes_read, char *key_out){
 		while((res < min) || (res > max)){
 			res = ret_range(min, max, res);
 		}
-
-		sprintf(buffer, "%s%c", buffer, res);
+//D(("Above segfault with tmp = %d, buffer = %s, res = %c", tmp, buffer, res));
+		len = sprintf(buffer, "%s%c", buffer, res);
+//D(("sprintf() wrote %d bytes (%s).", len, buffer));
 
 		tmp++;
 	}
