@@ -54,7 +54,7 @@
  * It works better now than it did originally though.
  * - 26 used to work until I fixed the issue of 94 not working.  Will be ressolved tomorrow.
  **/
-#define MODULO	26
+#define MODULO	94
 
 /**
  * lookup_table[]

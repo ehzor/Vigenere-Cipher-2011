@@ -15,6 +15,8 @@ int main(int argc, char **argv[]){
 	ebuff = (char*)malloc(sizeof(char)*len);
 	dbuff = (char*)malloc(sizeof(char)*len);
 
+	printf("Running Viegenere Cipher with modulo %d...\n", MODULO);
+
 	// Fetch the key (of length len), storing it inside of ck
 	key(len, ck);
 
