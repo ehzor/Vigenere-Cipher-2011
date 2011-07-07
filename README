@@ -1,3 +1,5 @@
 As a first stab at encryption, I've decided to write a cipher based on the Vigenere Cipher.
 
 This will be an OTP (one-time pad) cipher that uses the benefits of Vigenere Cipher, but also looks to solve issues that are in place with OTP ciphers.  This will be nothing more than a proof of concept, but also hope that it proves useful.
+
+To find more information on this for right now, see the comments in key.h.  When this program is in more of a usable state this README will contain more information.
