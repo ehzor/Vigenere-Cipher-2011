@@ -45,14 +45,13 @@
  *
  * TBL SIZE	| INCLUDES			| STATUS
  * -------------------------------------------------------
- * 26		| A-Z				| WIP
+ * 26		| A-Z				| WORKS
  * 52		| A-Z, a-z			| WIP
  * 94		| A-Z, a-z, rest of ASCII table | WORKS
  *
  * NOTES:
  * - 52 is harder to code as in ASCII scan code, it has two ranges, instead of just one.
  * It works better now than it did originally though.
- * - 26 used to work until I fixed the issue of 94 not working.  Will be ressolved tomorrow.
  **/
 #define MODULO	94
 
