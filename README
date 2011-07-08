@@ -14,4 +14,12 @@ Due to language restrictions, the GMP library is required to compile this progra
 
 This program will use anywhere from 1024 bits (308 digits) to 8192 bits (2,466 digits).
 
+(Side note:
+Let n = bits
+
+Total digits = log2 * n.  Assume log is base 10.  Range = 0 - (2^n)-1 [since the key cannot be negative]
+)
+
 Using the GMP library provides the ability to use big integers (beyond 64 bits), while also offering the ability to handle the computations needed.
+
+Please note that parts of this program are licensed under the GPL.  While the program itself is licensed under the SPL, it tries to follow the restrictions put in place as much as possible.
