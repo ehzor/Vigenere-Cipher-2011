@@ -1,5 +1,17 @@
-As a first stab at encryption, I've decided to write a cipher based on the Vigenere Cipher.
+This program implements a mock OTP (one-time pad) Viegenere Cipher using one of the following modulos for the key:
 
-This will be an OTP (one-time pad) cipher that uses the benefits of Vigenere Cipher, but also looks to solve issues that are in place with OTP ciphers.  This will be nothing more than a proof of concept, but also hope that it proves useful.
+26: Use only A-Z characters
+52: Use A-Z and a-z characters
+94: Use A-Z, a-z, and all other printable ASCII characters
 
-To find more information on this for right now, see the comments in key.h.  When this program is in more of a usable state this README will contain more information.
+However, implementing the Viegenere Cipher using computers poses a problem when transmitting the cipher over a wire.
+
+A OTP requires that the pad cannot be intercepted, or recoverable.  This, for exmaple, is why when the Viegenere Cipher was used in the past, methods such as burning paper, or hiding the key inside of a walnut shell, were used.
+
+While this program uses a static key (see: table[] in vc.h), the distribution of the cipher key will be handled by encrypting the key using the Dille-Hellman Key Exchange.
+
+Due to language restrictions, the GMP library is required to compile this program.  Even on modern machines, only 64-bit numbers are allowed, which only offers 20 digits.  For the D-H key exchange to serve a purpose, the key must at least be 512-bits long, which is about 154 digits.
+
+This program will use anywhere from 1024 bits (308 digits) to 8192 bits (2,466 digits).
+
+Using the GMP library provides the ability to use big integers (beyond 64 bits), while also offering the ability to handle the computations needed.
