@@ -50,6 +50,7 @@ struct timeval gettime(){
  **/
 void bottleneck(struct timeval* s, struct timeval* e, char *process){
 	struct timeval res;
+	long int msec = 0;
 
 	if(e->tv_usec < s->tv_usec){
 		int nsec = (e->tv_usec - s->tv_usec) / 1000000 + 1;
@@ -66,7 +67,20 @@ void bottleneck(struct timeval* s, struct timeval* e, char *process){
 	res.tv_sec = e->tv_sec - s->tv_sec;
 	res.tv_usec = e->tv_usec - s->tv_usec;
 
-	D(("%s took %ld seconds, %ld microseconds.", process, res.tv_sec, res.tv_usec));
+	if(res.tv_usec < 0)
+		res.tv_usec *= -1;
+
+	while(res.tv_usec > 1000000){
+		res.tv_usec -= 1000000;
+		res.tv_sec += 1;
+	}
+
+	while(res.tv_usec > 1000){
+		res.tv_usec -= 1000;
+		msec += 1;
+	}
+
+	D(("%s took %ld seconds, %ld milliseconds, %ld microseconds.", process, res.tv_sec, msec, res.tv_usec));
 }
 
 #endif

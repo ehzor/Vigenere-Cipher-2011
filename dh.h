@@ -28,7 +28,7 @@ Ka, Kb, Ra, Rb - Private (not sent via clear text)
  * Please see appropriate source files for network information.
  ******************************************/
 #include "debug.h"
-//#include "genrand.h"
+#include "bigint.h"
 #include "random.h"
 #include <stdint.h>
 
@@ -116,16 +116,46 @@ int prime(uint64_t v){
  * Returns the prime number found.
  **/
 uint64_t gen_p(void){
-	uint64_t tmp = sized_num(300);
 	tvstart = gettime();
 
-	while(!prime(tmp)){
-		tmp = sized_num(300);
-	}
+	int bit = 8192;
+	int size = bit / 2;
+
+	gmp_randstate_t grand;
+
+	mpz_t p;
+	mpz_init(p);
+
+	char *p_str = (char*)malloc(sizeof(char) * (size + 1));
+
+	p_str[0] = '1';
+
+	gmp_randinit_default(grand);
+	gmp_randseed_ui(grand, bit * size * tvstart.tv_usec);
+
+	// for() loop was here (for(; i < bits; i++){}), took it out as doesn't seem to be needed
+//	mpz_urandomb(randres, grand, bit);
+//	mpz_out_str(stdout, 10, randres);
+//	printf("\n");
+
+	birandom(bit, p);
+//mpz_out_str(stdout, 10, p);
+	p_str[4096] = '\0';
+
+//	mpz_set_str(randres, p_str, 2);
+//	mpz_set_str(p, p_str, 2);
+//	mpz_nextprime(p, p);
+
+	mpz_get_str(p_str, 10, p);
+
+	gmp_randclear(grand);
+D(("p = %s", p_str));
+	mpz_clear(p);
+	free(p_str);
 
 	tvend = gettime();
 	bottleneck(&tvstart, &tvend, "Generating P");
-	return tmp;
+	return 0;
 }
 
 /**

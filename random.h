@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdio.h>
-#include <stdlib.h> // Only for rand()...hate using it but...meh
 #include <time.h>
 #include "debug.h"
 #include "mt.h"
@@ -27,8 +26,8 @@
 #define KISS(c,k,g,x,y,z,t) (MWC+XSH+CNG)
 
 uint64_t getrand(uint64_t c, uint64_t k, uint64_t g, uint64_t x, uint64_t y, uint64_t z){
-        uint64_t t;
-//D(("c = %d, k = %d, g = %d, x = %d, y = %d, z = %d", c, k, g, x, y, z));
+        uint64_t t; // Dummy variable that serves no purpose (t = KISS(...) (w/o t var) also possible)
+
         return KISS(c, k, g, x, y, z, t);
 }
 
@@ -37,25 +36,41 @@ uint64_t getrand(uint64_t c, uint64_t k, uint64_t g, uint64_t x, uint64_t y, uin
  **/
 
 /**
- * numbdigits()
- * number:	The number to evaluate	[in]
+ * rndseedkey()
+ * digits:	How long the key is in bits.	[in]
  *
- * Returns the number of digits found in a number.
+ * Generates a random number using the M-T random number generator.
+ * Since seeds have to be given to GMP, and to ensure random numbers are random, a random seed is given.
+ *
+ * Returns the random number to be given to the generator.
  **/
-uint64_t numdigits(uint64_t number){
-	uint64_t tmp = number;
+uint64_t rndseedkey(uint64_t digits){
+	/**
+	 * Some people hate people that use time for a RNG.
+	 * I do too, but since it's only done to feed the real RNG, no worries.
+	 **/
+	time_t tt;
+	struct tm *ti;
 
-	uint64_t i = 0;
+	time(&tt);
+	ti = localtime(&tt);
 
-	if(number < 0)
-		tmp = -tmp;
+	// Using 64-bit numbers to make things better for the encryption side
+	uint64_t s, m, h, y, x, z;
+	s = ti->tm_sec;
+	m = ti->tm_min;
+	h = ti->tm_hour;
+	y = ti->tm_yday;
 
-	while(tmp){
-		tmp /= 10;
-		i++;
-	}
+	// Do a little bit of trickery (not really big)
+	x = (s + m + h + y) / digits;
+	z = ((s + m + h + y) * digits);
 
-	return i;
+	// Initialize the RNG using yet another RNG (weird, huh?)
+	init_genrand64(getrand(s, m, h, y, x, z));
+
+	// Finally, get the random number
+	return genrand64_int64();
 }
 
 /**
@@ -80,9 +95,13 @@ uint64_t URandom(int bytes, char *buff){
 		return 0;
 	}
 
+	/* Best attempt at getting all *bytes* of data...
+	 * It was either this or constant strlen(buff) calls...this is less intensive
+	 **/
 	while(len < bytes){
 		c = fgetc(fp);
 
+		// Anything from " " - "~" are accceptable (see ASCII table if confused)
 		if((c >= ' ') && (c <= '~')){
 			buff[len] = c;
 
@@ -93,54 +112,6 @@ uint64_t URandom(int bytes, char *buff){
 	fclose(fp);
 
 	return len;
-}
-
-/**
- * sized_num()
- * digits:	The amount of digits to ensure the final result has.	[in]
- *
- * Loops through until a number is atleast (digits) long.
- **/
-uint64_t sized_num(int digits){
-	uint64_t val = 2;
-	uint64_t tmp = 0;
-	uint64_t curd = 0; // Current digits
-
-	time_t tt;
-	struct tm *ti;
-
-	time(&tt);
-	ti = localtime(&tt);
-
-	srand(time(NULL));
-	int r = rand();// % 57 + 65;
-
-	uint64_t s, m, h, y, x, z;
-	s = ti->tm_sec;
-	m = ti->tm_min;
-	h = ti->tm_hour;
-	y = ti->tm_yday;
-	x = (s + m + h + y) / digits;
-	z = ((s + m + h + y) * digits) * r;
-
-	uint64_t init[4] = { getrand(s,m,h,y,x,z), getrand(s,m,h,y,x,z), getrand(s,m,h,y,x,z), getrand(s,m,h,y,x,z) };
-	init_by_array64(init, 4);
-
-	while(tmp < digits){
-//	while(curd <= digits){
-		val += genrand64_int64();
-//		curd += numdigits(val);
-		tmp++;
-	}
-
-//	while(curd <= digits){
-//		tmp = getrand(1, 2, 3, 4, 5, 6);
-//		val = tmp * tmp; //val * tmp;
-//		curd = numdigits(val);
-//	}
-//D(("val = %"PRIu64" was determined of digits %"PRIu64, val, numdigits(val)));
-
-	return val;
 }
 
 #endif

@@ -1,6 +1,7 @@
 #include "vc.h"
 #include "dh.h"
 #include "random.h"
+#include "bigint.h"
 
 int main(int argc, char *argv[]){
 prime(3);
