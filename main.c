@@ -1,4 +1,4 @@
-#include "key.h"
+#include "vc.h"
 #include "dh.h"
 #include "random.h"
 
@@ -43,6 +43,8 @@ prime(3);
 	if(strcmp(text, dbuff) != 0)
 		printf("Error running algorithm.\nP: %s\nK: %s\nC: %s\nD: %s\n", text, ck, ebuff, dbuff);
 
+uint64_t p = gen_p();
+D(("p = %"PRIu64, p));
 	// Free up memory...must always be at bottom
 	free(text);
 	free(ck);

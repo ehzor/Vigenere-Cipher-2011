@@ -126,9 +126,11 @@ uint64_t sized_num(int digits){
 	uint64_t init[4] = { getrand(s,m,h,y,x,z), getrand(s,m,h,y,x,z), getrand(s,m,h,y,x,z), getrand(s,m,h,y,x,z) };
 	init_by_array64(init, 4);
 
-	while(curd <= digits){
-		val *= genrand64_int64();
-		curd += numdigits(val);
+	while(tmp < digits){
+//	while(curd <= digits){
+		val += genrand64_int64();
+//		curd += numdigits(val);
+		tmp++;
 	}
 
 //	while(curd <= digits){
@@ -136,7 +138,7 @@ uint64_t sized_num(int digits){
 //		val = tmp * tmp; //val * tmp;
 //		curd = numdigits(val);
 //	}
-D(("val = %"PRIu64" was determined of digits %"PRIu64, val, numdigits(val)));
+//D(("val = %"PRIu64" was determined of digits %"PRIu64, val, numdigits(val)));
 
 	return val;
 }
