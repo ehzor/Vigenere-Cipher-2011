@@ -18,8 +18,8 @@
  * ENC() = ENCRYPT
  * DEC() = DECRYPT
  *
- * ENC(P) = Pn + Kn (while (n+1) != end of P)
- * DEC(C) = Cn - Kn (while (n+1) != end of C)
+ * ENC(P) = (Pn + Kn) % 26 (while (n+1) != end of P)
+ * DEC(C) = (Cn - Kn) % 26 (while (n+1) != end of C)
  *
  * The original cipher only used the uppercase English alphabet for keys.
  * This program uses those, and offers a chance to use others.
@@ -27,7 +27,11 @@
  * MODULO 52 = MODULO 26 and lowercase alphabet
  * MODULO 94 = MODULO 52 and all other characters in ASCII
  *
+ * All vc_* functions (i.e.: vc_key()) are public.
+ *
  * MODULO value is based on number of characters in table[].
+ *
+ * Please note that the cipher is dependent on the table[]...
  *
  * Developed as a proof of concept, this is meant to re-evaulate this cipher,
  * as well as propose ideals on how to combat the OTP (one-time pad) cipher scheme.
@@ -35,10 +39,14 @@
 #ifndef __KEY_H
 #define __KEY_H
 
+// This is for uint64_t
+#include <stdint.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "debug.h"
+#include "random.h"
 
 /**
  * See mod() comments for details on this.
@@ -46,14 +54,24 @@
  * TBL SIZE	| INCLUDES			| STATUS
  * -------------------------------------------------------
  * 26		| A-Z				| WORKS
- * 52		| A-Z, a-z			| WIP
+ * 52		| A-Z, a-z			| WORKS
  * 94		| A-Z, a-z, rest of ASCII table | WORKS
  *
  * NOTES:
  * - 52 is harder to code as in ASCII scan code, it has two ranges, instead of just one.
  * It works better now than it did originally though.
  **/
-#define MODULO	94
+int MODULO = 94;
+
+/**
+ * struct __key {}
+ *
+ * Used as a buffer for sending and storing the key.
+**/
+typedef struct __key {
+	uint64_t hi;
+	uint64_t lo;
+} keybuff;
 
 /**
  * lookup_table[]
@@ -64,6 +82,9 @@
  * Usage:
  *
  * Return the character at position (Pc + Kc) for enciphering, or (Cc - Kc) for deciphering.
+ *
+ * By definition, using a static table can break the purpose of OTP, but since the key itself
+ * is different upon each key-gen, it's trivial to worry about the table being an issue.
  **/
 const char table[94] = {
 			// MODULO == 26
@@ -72,6 +93,7 @@ const char table[94] = {
 			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 			// MODULO == 94
 			' ', '!', '"', '#', '$', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':',
+			// -- 78
 			';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~'
 };
 
@@ -109,11 +131,6 @@ char encipher(char p, char k){
 	// Index counters for both plain-text and key characters
 	int pn = 0, kn = 0;
 
-	char v;
-
-	// Maximum value that i is bound to (base-0 solution)
-	int bound = MODULO - 1;
-
 	pn = tbl_lookup(p);
 	kn = tbl_lookup(k);
 
@@ -123,8 +140,6 @@ char encipher(char p, char k){
 	while(i >= MODULO){
 		i -= MODULO;
 	}
-
-	v = table[i];
 
 	return table[i];
 }
@@ -157,35 +172,6 @@ char decipher(char c, char k){
 
 	return table[i];
 }
-/**
- * key_index()
- * a:		ASCII/char number of cipher			[in]
- * b:		ASCII/char number of key			[in]
- * base:	Multiply modulus by base to increase index	[in]
- *
- * Returns modulus of a & b (modulo 26), giving position to use in key.
- * If base is > 1, then modulus will be (mod * base).
- *
- * Cipher requires modulo 26, but possibly could change this as the original
- * cipher would only use A-Z...this will use all printable ASCII characters.
- **/
-static int key_index(int a, int b/*, int base = -1*/){
-	// Get the sum of a & b for MODULO (more useful if self-made MODULO code is used)
-	int root = (a + b);
-
-	/**
-	 * Self-implementation of MODULO code
-	 * root % MODULO can be used, as this might cause more cycles than %
-	 * Implemented for the fun of it.
-	 **/
-	int modulo = root - (MODULO * (root / MODULO));
-	//int modulo = root % MODULO;
-/*
-	if(base > 1)
-		modulo *= base;
-*/
-	return modulo;
-}
 
 /**
  * ret_range()
@@ -198,29 +184,13 @@ static int key_index(int a, int b/*, int base = -1*/){
  * In future, hope to turn val into in/out, instead of just in.
  **/
 int ret_range(int min, int max, int val){
-#if MODULO != 52
 	while((val < min) || (val > max)){
 		if(val < min)
 			val += min;
 		else if(val > max)
 			val -= max;
 	}
-#else
-	while((val < min) || (val > max)){
-		while((val > 90) && (val < 97)){
-			val -= 97;
-		}
 
-		while(val > 122){
-			val -= 122;
-		}
-
-		if(val < min)
-			val += min;
-		else if(val > max)
-			val -= max;
-	}
-#endif
 	return val;
 }
 
@@ -235,26 +205,12 @@ int ret_range(int min, int max, int val){
  *
  * NOTE: return of key() should always be the same as bytes_read!!!
  **/
-static int key(int bytes_read, char *key_out){
-	FILE *fp;
-	int len, res, tmp, min, max = 0;
-	char *buffer;
+static int vc_key(int bytes_read, char *key_out){
+	int res, tmp, min, max = 0;
 
-	fp = fopen("/dev/urandom", "r");
-	if(!fp){
-		printf("Unable to open /dev/random!\n");
-		return 0;
-	}
-
-	len = (sizeof(char) * bytes_read);
-
-	buffer = (char*)malloc(len);
-
-	if(!buffer){
-		printf("Unable to allocate enough memory!\n");
-		return 0;
-	} else
-		D(("Allocated %d bytes to buffer.", len));
+	// Allocate a big enough buffer to hold x bytes of data
+	char *buff = (char*)malloc(sizeof(char) * bytes_read);
+	URandom(bytes_read, buff);
 
 	if(MODULO == 26){
 		min = 65;
@@ -270,22 +226,40 @@ static int key(int bytes_read, char *key_out){
 	tmp = 0;
 
 	while(tmp < bytes_read){
-		res = fgetc(fp);
+		res = buff[tmp];
 
-		while((res < min) || (res > max)){
-			res = ret_range(min, max, res);
+		/**
+		 * MODULO 52 is a special case that requires additional checks.  26 & 104 don't have this issue.
+		 **/
+		if(MODULO != 52){
+			while((res < min) || (res > max)){
+				res = ret_range(min, max, res);
+			}
+		} else{
+			/**
+			 * Only way I can get this to work...
+			 * ASCII 65 - 90: A-Z
+			 * ASCII 97 - 122: a-z
+			 * We need to check to see if we are between 91 & 97, or if we've went over or under.
+			 *
+			 * if() block for this don't work for some reason...
+			 **/
+			while(((res > 'Z') && (res < 'a')) || ((res < min) || (res > max))){
+				if((res > 'Z') && (res < 'a'))
+					res -= 9;
+
+				res = ret_range(min, max, res);
+			}
 		}
-//D(("Above segfault with tmp = %d, buffer = %s, res = %c", tmp, buffer, res));
-		len = sprintf(buffer, "%s%c", buffer, res);
-//D(("sprintf() wrote %d bytes (%s).", len, buffer));
+
+		key_out[tmp] = res;
 
 		tmp++;
 	}
 
-	memcpy(key_out, buffer, bytes_read);
+//D(("KEY: %s", key_out));
 
-	fclose(fp);
-	free(buffer);
+	free(buff);
 
 	return tmp;
 }
@@ -299,26 +273,20 @@ static int key(int bytes_read, char *key_out){
  * Encrypts given data using the key, and stores it in buff.
  *
  **/
-void encrypt(char p[], char k[], char *buff){
-	// p, k and buff will all be the same length
-	int len = strlen(k);
+void vc_encrypt(char p[], char k[], char *buff){
+	// p & k will both be the same length
+	int len = strlen(p);
 
 	// Current position inside of p & k
 	int i = 0;
 
-	char *buffer = (char*)malloc(sizeof(char)*len);
-
 	while(i < len){
-		// buffer = buffer + encrypted character(p,k)
-		sprintf(buffer, "%s%c", buffer, encipher(p[i], k[i]));
+		buff[i] = encipher(p[i], k[i]);
 
 		i++;
 	}
 
-	// Copy buffer to buff, as we have to free up memory (good practice)
-	strcpy(buff, buffer);
-
-	free(buffer);
+//D(("ebuff: %s", buff));
 }
 
 /**
@@ -329,26 +297,20 @@ void encrypt(char p[], char k[], char *buff){
  *
  * Decrypts cipher (using key), and stores it into buff.
  **/
-void decrypt(char c[], char k[], char *buff){
+void vc_decrypt(char c[], char k[], char *buff){
 	// c & k will be the same length
 	int len = strlen(c);
 
 	// Current position in c & k
 	int i = 0;
 
-	char *buffer = (char*)malloc(sizeof(char)*len);
-
 	// While not at the end of the cipher text
 	while(i < len){
-		// buffer = buffer + decrypted character(c,k)
-		sprintf(buffer, "%s%c", buffer, decipher(c[i], k[i]));
+		buff[i] = decipher(c[i], k[i]);
 
 		i++;
 	}
-
-	memcpy(buff, buffer, len);
-
-	free(buffer);
+//D(("dbuff: %s", buff));
 }
 
 #endif
