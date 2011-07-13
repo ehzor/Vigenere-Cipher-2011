@@ -23,3 +23,11 @@ Total digits = log2 * n.  Assume log is base 10.  Range = 0 - (2^n)-1 [since the
 Using the GMP library provides the ability to use big integers (beyond 64 bits), while also offering the ability to handle the computations needed.
 
 Please note that parts of this program are licensed under the GPL.  While the program itself is licensed under the SPL, it tries to follow the restrictions put in place as much as possible.
+
+This comes with two programs:
+1) Server
+2) Client (program & also PAM module [*.so])
+
+The server is the backbone to this process.  It is simple in nature but illistrates the purpose of this program.
+
+The client will show you what the PAM module will be like.  Using this, you can easily debug issues in regards to connectivity to the server.
