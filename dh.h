@@ -31,20 +31,7 @@ Ka, Kb, Ra, Rb - Private (not sent via clear text)
 #include "bigint.h"
 #include "random.h"
 #include <stdint.h>
-
-/**
- * Since uint64_t is not supported by gcc's pow(), self-made pow is done.
- **/
-uint64_t pow64(uint64_t a, uint64_t b){
-	uint64_t v = a;
-
-	while(b > 0){
-		v *= a;
-		b--;
-	}
-
-	return v;
-}
+#include <math.h>
 
 /**
  * pubkey()
@@ -57,10 +44,10 @@ uint64_t pow64(uint64_t a, uint64_t b){
  * Generates a public key based on the given information that is to be shared with other party.
  **/
 uint64_t pubkey(uint64_t secret, uint64_t g, uint64_t p){
-	uint64_t tmp = pow64(g, secret);
-	tmp = tmp % p;
+//	uint64_t tmp = pow64(g, secret);
+//	tmp = tmp % p;
 
-	return tmp;
+	return 0;
 }
 
 /**
@@ -74,82 +61,45 @@ uint64_t pubkey(uint64_t secret, uint64_t g, uint64_t p){
  * This is the secret key used to encrypt and decrypt data sent and received.
  **/
 uint64_t ke_secret(uint64_t b, uint64_t secret, uint64_t p){
-	uint64_t tmp = pow64(b, secret);
-	tmp = tmp % p;
+//	uint64_t tmp = pow64(b, secret);
+//	tmp = tmp % p;
 
-	return tmp;
-}
-
-/**
- * prime()
- * v:	The number to check against.	[in]
- *
- * The D-H KE specifies that p MUST be prime...0 if not, 1 if so.
- **/
-int prime(uint64_t v){
-	int t = 3;
-	int n = 9;
-
-	if((v == 2) || ((v & 1) == 0))
-		return 0;
-
-	while(n < v){
-		if((v % t) == 0)
-			return 0;
-
-		t += 2;
-		n = t * t;
-	}
-
-	if(n == v)
-		return 0;
-
-	return 1;
+	return 0;
 }
 
 /**
  * gen_p()
- * No varaibles passed.
+ * bit:	The bit length (1024 - 8192) of the key
  *
  * The D-H KE requires a prime number be generated for modulo computations.
  *
  * Returns the prime number found.
  **/
-uint64_t gen_p(void){
+uint64_t gen_p(uint64_t bit){
 	tvstart = gettime();
 
-	int bit = 8192;
-	int size = bit / 2;
+	uint64_t size = bit / 2;
 
 	gmp_randstate_t grand;
 
 	mpz_t p;
 	mpz_init(p);
 
-	char *p_str = (char*)malloc(sizeof(char) * (size + 1));
+	char *p_str = (char*)malloc(sizeof(char) * (bit + 1)); // size - 1
 
 	p_str[0] = '1';
 
 	gmp_randinit_default(grand);
-	gmp_randseed_ui(grand, bit * size * tvstart.tv_usec);
-
-	// for() loop was here (for(; i < bits; i++){}), took it out as doesn't seem to be needed
-//	mpz_urandomb(randres, grand, bit);
-//	mpz_out_str(stdout, 10, randres);
-//	printf("\n");
+	gmp_randseed_ui(grand, rndseedkey(bit * log(2)));
 
 	birandom(bit, p);
-//mpz_out_str(stdout, 10, p);
-	p_str[4096] = '\0';
 
-//	mpz_set_str(randres, p_str, 2);
-//	mpz_set_str(p, p_str, 2);
-//	mpz_nextprime(p, p);
+	p_str[bit] = '\0'; // p_str[4096] = '\0';
 
 	mpz_get_str(p_str, 10, p);
-
+D(("p_str = %s", p_str));
 	gmp_randclear(grand);
-D(("p = %s", p_str));
+
 	mpz_clear(p);
 	free(p_str);
 
