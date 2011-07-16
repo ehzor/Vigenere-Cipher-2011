@@ -31,3 +31,5 @@ This comes with two programs:
 The server is the backbone to this process.  It is simple in nature but illistrates the purpose of this program.
 
 The client will show you what the PAM module will be like.  Using this, you can easily debug issues in regards to connectivity to the server.
+
+The specific security here is that P, G and the server's secret are all generated per connection.  This, coupled with the fact that the network communication between server & client/module leaves there being virtually no way to sniff the needed data, and get the secret key.
