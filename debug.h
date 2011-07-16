@@ -1,6 +1,7 @@
 #ifndef __DEBUG_H
 #define __DEBUG_H
 
+#include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
 
@@ -10,6 +11,8 @@
 /**
  * If we want to debug code, then allow this function.
  * #if...#endif is outside of #define due to C being picky.
+ *
+ * If DEBUG != 1, then just do a regular printf().
  **/
 #if DEBUG==1
 	#define D(x) do {								\
@@ -18,8 +21,18 @@
 		printf ("\n");								\
 	} while (0)
 #else
-	#define D(X) do { } while(0)
+	#define D(X) do {			\
+				printf x;	\
+				printf("\n");	\
+	 } while(0)
 #endif
+
+/** Macro wrapper for strcmp() since its asinine otherwise... 
+  *
+  * Usage: if(streq(..., ...)){ ... } = if(!strcmp(..., ...)){ ... }
+**/
+#define streq(a, b) !strcmp(a, b)
+#define strneq(a, b, n) !strncmp(a, b, n)
 
 // Two struct timeval vars are used for bottleneck()
 struct timeval tvstart;
