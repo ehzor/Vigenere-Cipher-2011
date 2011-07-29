@@ -1,172 +1,279 @@
+/****************************
+ * Network.h
+ *
+ * Used for handling network-side code.
+ * This is a pseudo-C class for networking stuff.  Reworked to make things easier.
+ ****************************/
 #ifndef __NETWORK_H
 #define __NETWORK_H
 
-/**
- * This header contains the network code used for both the server and client.
- *
- * server_* are server-specific.
- * client_* are client-specific.
- *
- * All others are generic and/or used for both.
- **/
+#include "global.h"
+
+// Used for sockets
 #include <unistd.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h>
 #include <arpa/inet.h>
-#include <stdlib.h>
-#include <string.h>
-#include "debug.h"
+#include <netdb.h>
 
 /**
- * in_addr()
- * isa: struct sockaddr pointer for server sockaddr     [in]
+ * NetSockErr()
+ * err:	Error number to print message about	[in]
  *
- * Fetches the IPv4 or IPv6 address, depending on which is supported.
+ * Displays error message.
  **/
-void *in_addr(struct sockaddr *isa){
-        if(isa->sa_family == AF_INET)
-                return &(((struct sockaddr_in*)isa)->sin_addr);
+void NetSockErr(int err){
+	D(("Socket error %d: %s", err, strerror(err)));
+}
 
-        return &(((struct sockaddr_in6*)isa)->sin6_addr);
+/**
+ * NetSockErrOk()
+ * err:	Error number of socket call	[in]
+ *
+ * Since using blocking sockets, there can be socket errors that are non-fatal.
+ * This checks err against this, returns 1 if the error is non-fatal, 0 if it is fatal.
+ **/
+int NetSockErrOk(int err){
+	// Known error codes to not be fatal to a socket stream
+	if((err != EINTR) && (err != EAGAIN) && (err != EWOULDBLOCK)){
+		NetSockErr(err);
+
+		return 0;
+	}
+
+	D(("Encountered non-fatal socket error...continuing with transmission."));
+
+	return 1;
+}
+
+/**
+ * NetSetOpt()
+ * sock:	Socket to set the option for	[in]
+ * opt:		Option to set on socket		[in]
+ *
+ * Returns returned value of setsockopt()
+ **/
+int NetSetOpt(int sock, int opt){
+	int true = 1;
+
+	return setsockopt(sock, SOL_SOCKET, opt, &true, sizeof(int));
+}
+
+/**
+ * NetServerCreate()
+ * port:	The port number to create the server on	[in]
+ *
+ * Returns 0 on failure, socket FD on success.
+ **/
+int NetServerCreate(int port){
+	int sock = -1;
+	int enable = 1;
+
+	struct sockaddr_in net;
+
+	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1){
+		perror("socket()");
+		return 0;
+	}
+
+	D(("Created socket %d", sock));
+
+	NetSetOpt(sock, SO_REUSEADDR);
+
+	mem0(&net);
+
+	net.sin_family = AF_INET;
+	net.sin_port = htons(port);
+	net.sin_addr.s_addr = INADDR_ANY;
+
+	if(bind(sock, (struct sockaddr*)&net, sizeof(net)) == -1){
+		perror("bind()");
+		close(sock);
+
+		return 0;
+	}
+
+//	if(listen(sock, SO_MAXCONN) == -1){
+	if(listen(sock, 10) == -1){
+		perror("listen()");
+		close(sock);
+
+		return 0;
+	}
+
+	return sock;
+}
+/**
+ * NetClientCreate()
+ * ip:		IP address to connect to	[in]
+ * port:	Port number to connect to	[in]
+ *
+ * Returns 0 on failure, socket FD on success.
+ **/
+int NetClientCreate(char *ip, int port){
+	struct sockaddr_in net;
+
+	int sock = 0;
+
+	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1){
+		perror("socket()");
+		return 0;
+	}
+
+	mem0(&net);
+
+	net.sin_family = AF_INET;
+	net.sin_port = htons(port);
+
+	if(inet_pton(AF_INET, ip, &net.sin_addr) != -1){
+		perror("inet_pton()");
+		close(sock);
+
+		return 0;
+	}
+
+	if(connect(sock, (struct sockaddr*)&net, sizeof(net)) == -1){
+		perror("connect()");
+		close(sock);
+
+		return 0;
+	}
+
+	return sock;
 }
 
 /**
  * sendall()
- * s:		Socket [file descriptor] to send data to	[in]
- * buffer:	The data to send to the socket			[in]
+ * sock:	Socket FD to send data to	[in]
+ * data:	Buffer of data to send to sock	[in]
  *
- * Recursive send() for socket, since TCP/IP can't guarantee all of buffer will be sent in one go.
- *
- * Returns 0 on failure, otherwise total bytes sent.
+ * Sends all of the data to sock, returns 0 on failure, 1 on success.
  **/
-int sendall(int s, char *buffer){
+int sendall(int sock, char *data){
+	// Get length of data, as well as init other variables
+	int len = strlen(data);
 	int pos = 0;
-	int len = strlen(buffer);
-	int left = len;
 	int curr = 0;
+	int left = len;
+	int err = 0;
 
-	while(pos < len){
-		curr = send(s, buffer+pos, left, 0);
+	// While current buffer position != data length
+	while(pos <= len){
+		// Send some data to the socket
+		curr = send(sock, data+pos, left, 0);
 
-		if(curr == -1)
-			return 0;
+		// Check if an error occured (-1)
+		if(curr != -1){
+			// Update position of buffer by how much was actually sent
+			pos += curr;
 
-		pos += curr;
-		left -= curr;
+			// We have so much left to send
+			left -= curr;
+		} else{
+			// Holder for error number (safe-guard)
+			err = errno;
+
+			// If we ran into a fatal error, cancel the sending
+			if(!NetSockErrOk(err))
+				return 0;
+		}
 	}
 
-	return pos;
+	// Empty the data buffer
+	mem0(data);
+
+	// Since we sent all the data, just make error checking on function easier
+	return 1;
+}
+
+/**
+ * sendlenall()
+ *
+ * Same as sendall(), but sends the length of data first, then the actual data.
+ **/
+int sendlenall(int sock, char *data){
+	// Allocate temporary buffer to send length (5-character buffer)
+	char *tmp = mem(5);
+	mem0(tmp);
+
+	// Pad the length with 0's if it's less than 5 digits long
+	sprintf(tmp, "%05d", strlen(data));
+
+	if(!sendall(sock, tmp)){
+		free(tmp);
+
+		return 0;
+	}
+
+	// May not be needed, but used to cause a breather in transmission
+	sleep(1);
+
+	if(!sendall(sock, data))
+		return 0;
+
+	free(tmp);
+
+	return 1;
 }
 
 /**
  * recvall()
+ * socket:	Socket to receive data from	[in]
+ * buff:	Buffer to store data into	[out]
+ * len:		Length of data to read		[in]
  *
- * Same as sendall().  Done a little differently though.
+ * Receives data from socket, storing it in buff.  Returns 0 on failure, 1 on success
  **/
-int recvall(int s, char *buffer){
-	int curr = 0;
-	int pos = 0;
+int recvall(int sock, char *buff, int len){
+	mem0(buff);
 
-	/**
-	 * If we weren't using blocking I/O for sockets, could do "!= 0" instead...
-	 * However, "-1" is the only check possible right now...
-	 **/
-	while((curr = recv(s, buffer+pos, 1024, 0)) > 0){
-		pos += curr;
-	}
+	int pos = 0, curr = 0, left = len, err = 0;
 
-	if(curr == -1)
-		pos = 0;
+	while(pos < len){
+		curr = recv(sock, buff+pos, left, 0);
 
-	return pos;
-}
+		if(curr != -1){
+			pos += curr;
+			left -= curr;
+		} else{
+			err = errno;
 
-/*
-#define BACKLOG 10
-
-// File descriptors needed
-int server_fd, connfd, client_fd;
-
-struct addrinfo hints, *server_info, *p;
-
-// Connector information
-struct sockaddr_storage server_clientaddr;
-
-socklen_t sin_size;
-
-void *get_in_addr(struct sockaddr *sa){
-	// If using IPv4 (AF_INET), return IPv4 struct, otherwise 6
-	if(sa->sa_family == AF_INET)
-		return &(((struct sockaddr_in*)sa)->sin_addr);
-
-	return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-int server_init(struct addrinfo hints, char *host){
-	int rv = 0;
-
-	memset(&hints, 0, sizeof(hints));
-
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
-
-	if((rv = getaddrinfo(host, PORT, &hints, &server_info)) != 0){
-		D(("getaddrinfo(%d): %s", rv, gai_strerror(rv)));
-
-		return 0;
-	}
-
-	for(p = server_info; p != NULL; p = p->ai_next){
-		if((server_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
-			perror("server: socket");
-			continue;
+			if(!NetSockErrOk(err)){
+				perror("recv()");
+				return 0;
+			}
 		}
-
-		if(setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &rv, sizeof(int)) == -1){
-			perror("setsockopt");
-			return 0;
-		}
-
-		if(bind(server_fd, p->ai_addr, p->ai_addrlen) == -1){
-			close(server_fd);
-			perror("server: bind");
-			continue;
-		}
-
-		break;
 	}
 
-	if(!p){
-		D(("Unable to bind to %s:%s", host, PORT));
-		return 0;
-	}
-
-	freeaddrinfo(server_info);
-
-D(("Bound to %s on %s", host, PORT));
 	return 1;
 }
 
-void server_listen(){
-	D(("server_fd = %d", server_fd));
-	while(1){
-		sin_size = sizeof(server_clientaddr);
+/**
+ * recvlenall()
+ *
+ * Same as recvall(), but receives the length of the data first, then the actual data.
+ **/
+int recvlenall(int sock, char *buff){
+	int len = 0;
 
-		connfd = accept(server_fd, (struct sockaddr*)&server_clientaddr, &sin_size);
+	char *tmp = mem(strlen(buff));
+	mem0(tmp);
 
-		if(connfd == -1){
-//			D(("connfd = %d"));
-			continue;
-		} else
-			D(("Client connecting."));
+	if(!recvall(sock, tmp, 5)){
+		free(tmp);
 
-		close(connfd);
+		return 0;
 	}
+
+	len = atoi(buff);
+
+	sleep(1);
+
+	if(!recvall(sock, buff, len))
+		return 0;
+
+	return 1;
 }
-*/
 
 #endif

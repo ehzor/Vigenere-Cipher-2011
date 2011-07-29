@@ -1,4 +1,28 @@
 #!/bin/sh
 
-gcc -o server/server server/main.c -lgmp
-gcc -o client/client client/main.c -lgmp
+# Libraries to compile with
+LIBS="-lgmp"
+
+echo "Compiling with ${LIBS}..."
+
+# Remove old server exe
+if [ -e "server/server" ]; then
+	rm -rf server/server
+fi
+
+# Compile new server exe
+if [ -e "server/main.c" ]; then
+	gcc -o server/server server/main.c "${LIBS}"
+fi
+
+# Remove old client server exe
+if [ -e "client/client" ]; then
+	rm -rf client/client
+fi
+
+# Compile new client exe
+if [ -e "client/main.c" ]; then
+	gcc -o client/client client/main.c "${LIBS}"
+fi
+
+gcc -o test main.c

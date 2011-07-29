@@ -1,7 +1,8 @@
 #ifndef __DEBUG_H
 #define __DEBUG_H
 
-#include <stdio.h>
+#include "global.h"
+
 #include <time.h>
 #include <sys/time.h>
 
@@ -16,6 +17,10 @@
  **/
 #if DEBUG==1
 	#define D(x) do {								\
+		struct timeval tmp;							\
+		struct timezone tz;							\
+		gettimeofday(&tmp,&tz);							\
+		printf ("%ld.%06ld ", tmp.tv_sec, tmp.tv_usec);				\
 		printf ("[%s:%d] (%s)\t ", __FILE__, __LINE__, __FUNCTION__);		\
 		printf x;								\
 		printf ("\n");								\
@@ -26,17 +31,6 @@
 				printf("\n");	\
 	 } while(0)
 #endif
-
-/** Macro wrapper for strcmp() since its asinine otherwise... 
-  *
-  * Usage: if(streq(..., ...)){ ... } = if(!strcmp(..., ...)){ ... }
-**/
-#define streq(a, b) !strcmp(a, b)
-#define strneq(a, b, n) !strncmp(a, b, n)
-
-// Two struct timeval vars are used for bottleneck()
-struct timeval tvstart;
-struct timeval tvend;
 
 /**
  * Helper functions for bottleneck() usage.
