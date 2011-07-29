@@ -158,10 +158,17 @@ int sendall(int sock, char *data){
 	int left = len;
 	int err = 0;
 
+	char *tmp = mem(4 + len);
+
+	sprintf(tmp, "%04d%s", len, data);
+
+	// Since we add the data with 4-digit length of buffer, increment length by such
+	len += 4;
+
 	// While current buffer position != data length
 	while(pos <= len){
 		// Send some data to the socket
-		curr = send(sock, data+pos, left, 0);
+		curr = send(sock, tmp+pos, left, 0);
 
 		// Check if an error occured (-1)
 		if(curr != -1){
@@ -180,6 +187,9 @@ int sendall(int sock, char *data){
 		}
 	}
 
+	// Empty out the temporary buffer
+	mem0(tmp);
+
 	// Empty the data buffer
 	mem0(data);
 
@@ -188,91 +198,60 @@ int sendall(int sock, char *data){
 }
 
 /**
- * sendlenall()
- *
- * Same as sendall(), but sends the length of data first, then the actual data.
- **/
-int sendlenall(int sock, char *data){
-	// Allocate temporary buffer to send length (5-character buffer)
-	char *tmp = mem(5);
-	mem0(tmp);
-
-	// Pad the length with 0's if it's less than 5 digits long
-	sprintf(tmp, "%05d", strlen(data));
-
-	if(!sendall(sock, tmp)){
-		free(tmp);
-
-		return 0;
-	}
-
-	// May not be needed, but used to cause a breather in transmission
-	sleep(1);
-
-	if(!sendall(sock, data))
-		return 0;
-
-	free(tmp);
-
-	return 1;
-}
-
-/**
  * recvall()
  * socket:	Socket to receive data from	[in]
  * buff:	Buffer to store data into	[out]
- * len:		Length of data to read		[in]
  *
  * Receives data from socket, storing it in buff.  Returns 0 on failure, 1 on success
  **/
-int recvall(int sock, char *buff, int len){
+int recvall(int sock, char *buff){
+	// Just to make sure the buffer is empty
 	mem0(buff);
 
-	int pos = 0, curr = 0, left = len, err = 0;
+	int pos = 0, curr = 0, left = 0, len = 0, err = 0;
 
-	while(pos < len){
+	char *tmp = mem(4);
+
+	// First, we want to get the length of the buffer (4-byte padded)
+	if(recv(sock, tmp, 4, 0) == -1){
+		err = errno;
+
+		if(!NetSockErrOk(err)){
+			perror("recv() #1");
+			mem0(tmp);
+			return 0;
+		}
+	}
+
+	// Convert ASCII to integer...strips any padded 0's in the process
+	len = atoi(tmp);
+
+	// We have len left by default
+	left = len;
+
+	// While we still have bytes left
+	while(left != 0){
 		curr = recv(sock, buff+pos, left, 0);
 
+		// No error, continue on
 		if(curr != -1){
 			pos += curr;
 			left -= curr;
 		} else{
 			err = errno;
 
+			// Check to see if the error is fatal (NetSockErrOk() == 0 if fata)
 			if(!NetSockErrOk(err)){
 				perror("recv()");
+				mem0(tmp);
 				return 0;
 			}
 		}
 	}
 
-	return 1;
-}
-
-/**
- * recvlenall()
- *
- * Same as recvall(), but receives the length of the data first, then the actual data.
- **/
-int recvlenall(int sock, char *buff){
-	int len = 0;
-
-	char *tmp = mem(strlen(buff));
 	mem0(tmp);
 
-	if(!recvall(sock, tmp, 5)){
-		free(tmp);
-
-		return 0;
-	}
-
-	len = atoi(buff);
-
-	sleep(1);
-
-	if(!recvall(sock, buff, len))
-		return 0;
-
+	// We have read the entire socket
 	return 1;
 }
 
