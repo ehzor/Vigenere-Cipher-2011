@@ -1,0 +1,25 @@
+#!/bin/sh
+
+if [ -e "otp" ]; then
+	rm -rf otp
+fi
+
+gcc -Wall -lgmp -g -o otp main.c
+
+if [ -e "otp" ]; then
+# MODULO 26 check
+	echo "Test #1"
+	./otp -m 26 -k 1024 "TESTINGCIPHER"
+# MODULO 52 check
+#	echo "Test #2"
+#	./otp "TestingTheCipher" 52
+# MODULO 94 check
+#	echo "Test #3.1"
+#	./otp "Testing the cipher 012345678909876543210.thisis a string test of over 9000 to see . @ if this will cr@$h +h3 p|20g"
+
+#	echo "Test #3.2"
+#	./otp "Testing the cipher 012345678909876543210.thisis a string te"
+
+#	echo "Test #3.3"
+#	./otp "Testing the cipher"
+fi

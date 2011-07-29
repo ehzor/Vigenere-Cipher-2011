@@ -1,0 +1,4 @@
+#!/bin/sh
+
+gcc -o server/server server/main.c -lgmp -lcrypt
+gcc -o client/client client/main.c -lgmp -lcrypt

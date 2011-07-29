@@ -1,0 +1,5 @@
+TODO
+-----------------
++ Improve networking code (recv() & send() should NOT miss buffer data)
++ Implement Viegnere Cipher
++ Figure out encryption method to use with secret key (to make the D-H KE not pointless)
