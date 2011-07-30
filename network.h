@@ -18,6 +18,28 @@
 #include <netdb.h>
 
 /**
+ * NetGetIP()
+ * addr:	Address to get the IP of	[in]
+ *
+ * Converts addr into an IP, and returns it...else, returns NULL
+ **/
+char *NetGetIP(char *addr){
+	struct hostent *h;
+	struct in_addr a;
+
+	if((h = gethostbyname(addr))){
+		while(*h->h_addr_list){
+			memcpy((char*)&a, *h->h_addr_list++, sizeof(a));
+
+			D(("IP address of %s is %s", addr, inet_ntoa(a)));
+			return inet_ntoa(a);
+		}
+	}
+
+	return '\0';
+}
+
+/**
  * NetSockErr()
  * err:	Error number to print message about	[in]
  *
@@ -66,7 +88,7 @@ int NetSetOpt(int sock, int opt){
  *
  * Returns 0 on failure, socket FD on success.
  **/
-int NetServerCreate(int port){
+int NetServerCreate(char *addr, int port){
 	int sock = -1;
 	int enable = 1;
 
@@ -85,7 +107,8 @@ int NetServerCreate(int port){
 
 	net.sin_family = AF_INET;
 	net.sin_port = htons(port);
-	net.sin_addr.s_addr = INADDR_ANY;
+	//net.sin_addr.s_addr = INADDR_ANY;
+	inet_pton(AF_INET, NetGetIP(addr), &net.sin_addr);
 
 	if(bind(sock, (struct sockaddr*)&net, sizeof(net)) == -1){
 		perror("bind()");
@@ -101,6 +124,8 @@ int NetServerCreate(int port){
 
 		return 0;
 	}
+
+	D(("Server initialized on %s:%d", addr, port));
 
 	return sock;
 }
@@ -126,7 +151,7 @@ int NetClientCreate(char *ip, int port){
 	net.sin_family = AF_INET;
 	net.sin_port = htons(port);
 
-	if(inet_pton(AF_INET, ip, &net.sin_addr) != -1){
+	if(inet_pton(AF_INET, NetGetIP(ip), &net.sin_addr) == -1){
 		perror("inet_pton()");
 		close(sock);
 
@@ -140,119 +165,159 @@ int NetClientCreate(char *ip, int port){
 		return 0;
 	}
 
+	D(("Established connection to %s:%d", ip, port));
+
 	return sock;
 }
 
 /**
- * sendall()
+ * NetSend()
  * sock:	Socket FD to send data to	[in]
  * data:	Buffer of data to send to sock	[in]
  *
  * Sends all of the data to sock, returns 0 on failure, 1 on success.
  **/
-int sendall(int sock, char *data){
-	// Get length of data, as well as init other variables
+int NetSend(int sock, char *data){
+	// Length of data
 	int len = strlen(data);
+
+	D(("Sending %d bytes of data to socket %d:\n%s", len, sock, data));
+
+	// Current position of data buffer
 	int pos = 0;
-	int curr = 0;
+
+	// Amount of data that was sent
+	int sent = 0;
+
+	// Amount of data left (by default, all of data)
 	int left = len;
+
+	// Error number
 	int err = 0;
 
-	char *tmp = mem(4 + len);
+	// Padding for data
+	char *tmp = mem(len + 4);
+	mem0str(tmp);
 
+	// Pad data, with up to 4 0's prepended (i.e.: 25 = 0025), followed by all of the data
 	sprintf(tmp, "%04d%s", len, data);
 
-	// Since we add the data with 4-digit length of buffer, increment length by such
+	// Increment length by 4 (due to the padding)
 	len += 4;
 
-	// While current buffer position != data length
+	// While we are currently not at the end of the buffer
 	while(pos <= len){
-		// Send some data to the socket
-		curr = send(sock, tmp+pos, left, 0);
+		// Send some data through the wire (4 bytes at a time)
+		sent = send(sock, tmp+pos, 4, 0);
 
-		// Check if an error occured (-1)
-		if(curr != -1){
-			// Update position of buffer by how much was actually sent
-			pos += curr;
-
-			// We have so much left to send
-			left -= curr;
+		// Check if an error occured
+		if(sent > 0){
+			// Data was sent, so update positions
+			pos += sent;
+			left -= sent;
 		} else{
-			// Holder for error number (safe-guard)
 			err = errno;
 
-			// If we ran into a fatal error, cancel the sending
+			// Some errors are okay, as they are non-fatal to the transmission
 			if(!NetSockErrOk(err))
 				return 0;
 		}
 	}
 
-	// Empty out the temporary buffer
-	mem0(tmp);
+	// Empty temporary buffer
+	mem0str(tmp);
 
-	// Empty the data buffer
-	mem0(data);
+	// Empty data buffer
+	mem0str(&data);
 
-	// Since we sent all the data, just make error checking on function easier
+	// Success
 	return 1;
 }
 
 /**
- * recvall()
+ * NetRecv()
  * socket:	Socket to receive data from	[in]
  * buff:	Buffer to store data into	[out]
  *
  * Receives data from socket, storing it in buff.  Returns 0 on failure, 1 on success
  **/
-int recvall(int sock, char *buff){
+int NetRecv(int sock, char *buff){
 	// Just to make sure the buffer is empty
-	mem0(buff);
+	mem0str(buff);
 
-	int pos = 0, curr = 0, left = 0, len = 0, err = 0;
+	// Current position in buffer (by the time this is used, we'll be at the fourth position)
+	int pos = 4;
 
+	// Amount of bytes read
+	int read = 0;
+
+	// Error number
+	int err = 0;
+
+	// Get the length of the buffer
 	char *tmp = mem(4);
+	mem0str(tmp);
 
-	// First, we want to get the length of the buffer (4-byte padded)
-	if(recv(sock, tmp, 4, 0) == -1){
-		err = errno;
+	recv(sock, tmp, 4, 0);
 
-		if(!NetSockErrOk(err)){
-			perror("recv() #1");
-			mem0(tmp);
-			return 0;
-		}
-	}
+	// Convert the string for buffer length to integer (stripping padding 0's as well), then free memory
+	int len = atoi(tmp);
 
-	// Convert ASCII to integer...strips any padded 0's in the process
-	len = atoi(tmp);
+	// Re-allocate space for tmp buffer
+	tmp = remem(len);
 
-	// We have len left by default
-	left = len;
+	mem0str(tmp);
 
-	// While we still have bytes left
-	while(left != 0){
-		curr = recv(sock, buff+pos, left, 0);
+	// Amount of data left to read
+	int left = len;
 
-		// No error, continue on
-		if(curr != -1){
-			pos += curr;
-			left -= curr;
+	while(left > 0){
+		read = recv(sock, tmp, 4, 0);
+
+		if(read > 0){
+			left -= read;
+			pos += read;
+
+//			D(("Read %d bytes, now at position %d, with %d bytes left.", read, pos, left));
+//			D(("Data fetched: %s", tmp));
+			strcat(buff, tmp);
 		} else{
 			err = errno;
 
-			// Check to see if the error is fatal (NetSockErrOk() == 0 if fata)
 			if(!NetSockErrOk(err)){
 				perror("recv()");
 				mem0(tmp);
+
 				return 0;
 			}
 		}
+
+		mem0str(tmp);
 	}
 
-	mem0(tmp);
-
-	// We have read the entire socket
 	return 1;
+}
+
+/**
+ * NetAccept()
+ * sock:	Server socket to get accepts from	[in]
+ *
+ * Wrapper for accept().  Returns client socket on succes, 0 on failure.
+ **/
+int NetAccept(int sock){
+	struct sockaddr_in client;
+
+	int s = 0, len = sizeof(client);
+
+	if((s = accept(sock, (struct sockaddr*)&client, &len)) == -1){
+		perror("accept()");
+
+		return 0;
+	}
+
+	D(("Accepted connection from %s", inet_ntoa(client.sin_addr)));
+
+	return s;
 }
 
 #endif
