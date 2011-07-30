@@ -1,28 +1,27 @@
 #!/bin/sh
 
-# Libraries to compile with
-LIBS="-lgmp"
-
-echo "Compiling with ${LIBS}..."
-
 # Remove old server exe
 if [ -e "server" ]; then
+	echo "Old server binary found, deleting..."
 	rm -rf server
 fi
 
 # Compile new server exe
 if [ -e "server.c" ]; then
-	gcc -o server server.c "${LIBS}"
+	gcc -o server server.c -lgmp -lpthread
 fi
 
 # Remove old client server exe
 if [ -e "client" ]; then
+	echo "Old client binary found, deleting..."
 	rm -rf client
 fi
 
 # Compile new client exe
 if [ -e "client.c" ]; then
-	gcc -o client client.c "${LIBS}"
+	gcc -o client client.c -lgmp
 fi
 
-#gcc -o test main.c
+if [ -e "server" ]; then
+	./server 192.168.1.103 4309
+fi
